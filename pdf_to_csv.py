@@ -157,8 +157,15 @@ class PDF2CSV(object):
             for col_count in empty_coloumns:
                 row.pop(col_count-num)
                 num += 1
+        table = self.modify_table_data(table)
+        for row in table:
             csv_writer.writerow(row)
         out_csv_file.close()
+
+    def modify_table_data(self, table):
+        '''Opportunity for inheriting classes to modify table data as per individual needs
+        '''
+        return table
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extracts CSV file from single table PDF document(A4, Landscape)")
