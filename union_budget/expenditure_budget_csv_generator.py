@@ -12,6 +12,7 @@ fileConfig('parsers/logging_config.ini')
 logger = logging.getLogger()
 
 SKIP_FILENAMES = ["all statements of budget estimates"]
+SECOND_HEADER_FIELD = "budget support"
 
 class ExpenditureBudgetCSVGenerator(PDF2CSV):
     def __init__(self):
@@ -21,6 +22,7 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
     def modify_table_data(self, table):
         table = self.merge_splitted_coloumns(table)
         table = self.remove_dulicate_headers(table)
+        table = self.fix_second_header(table)
         empty_row_indices = []
         for row_num in range(len(table)-1):
             if table[row_num][1].strip() == "Major" and table[row_num+1][1].strip() == "Head":
@@ -51,17 +53,22 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
         new_col_indices = []
         for row_index in range(len(table)):
             row = table[row_index]
+            new_col_values_map = {}
             for col_index in range(1, len(row)):
-                if re.search(r'(\.{3}|[0-9]|\-[0-9]|Plan|Non-Plan)\s(\.{3}|[0-9]|\-[0-9]|Non-Plan|Total)', row[col_index]):
+                if re.search(r'(\.{3}|[0-9]|\-[0-9]|Plan|Non-Plan|IEBR)\s(\.{3}|[0-9]|\-[0-9]|Non-Plan|Total)', row[col_index]):
                     col_values = row[col_index].strip().split(" ")
                     row[col_index] = col_values[0]
                     for col_count in range(1,len(col_values)):
                         if col_index+col_count < len(row) and not row[col_index+col_count].strip():
                             row[col_index+col_count] = col_values[col_count]
                         else:
-                            row.insert(col_index+col_count, col_values[col_count])
+                            new_col_values_map[col_index+col_count] = col_values[col_count] 
                             if not col_index+col_count in new_col_indices and row_index <= self.header_rows_cap:
                                 new_col_indices.append(col_index+col_count)
+            num = 0
+            for index in sorted(new_col_values_map):
+                row.insert(index+num, new_col_values_map[index])
+                num += 1
         table = self.correct_major_head_values(table)
         for col_index in new_col_indices:
             table[0].insert(col_index, " ")
@@ -141,9 +148,26 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
             if not table[0][col_index+1].strip():  
                 table[0][col_index+1] = table[0][col_index]
             col_index += 1
-        for col_index in range(len(table[0])): 
-            table[0][col_index] = (table[0][col_index].strip() + " " + table[1][col_index].strip()).strip()
-        table.pop(1)
+        table = self.merge_up_rows(0, table)
+        return table
+
+    def fix_second_header(self, table):
+        header_row_index = None
+        for row_index in range(len(table)):
+            row = table[row_index]
+            col_value = row[2].lower().strip()
+            if col_value == SECOND_HEADER_FIELD:
+                return table
+            elif col_value == "budget":
+                header_row_index = row_index
+        if header_row_index:
+            table = self.merge_up_rows(header_row_index, table)
+        return table
+
+    def merge_up_rows(self, row_index, table):
+        for col_index in range(len(table[row_index])): 
+            table[row_index][col_index] = (table[row_index][col_index].strip() + " " + table[row_index+1][col_index].strip()).strip()
+        table.pop(row_index+1)
         return table
 
     def generate_expenditure_budgets_csv(self, doc_dir):
