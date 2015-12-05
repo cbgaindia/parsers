@@ -247,8 +247,6 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
     def generate_expenditure_budgets_csv(self, doc_dir):
         for file_name in glob.glob("%s*.pdf" % doc_dir):
             department_name = os.path.basename(file_name).lower().split(".pdf")[0].decode('utf-8')
-            if department_name != "ministry of drinking water and sanitation":
-                continue
             if not department_name in SKIP_FILENAMES:
                 logger.info("Processing PDF document for department: %s" % department_name)
                 try:
