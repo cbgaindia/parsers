@@ -9,24 +9,32 @@ from logging.config import fileConfig
 import os
 from PyPDF2 import PdfFileReader
 from reportlab.lib.pagesizes import A4, landscape
-
+import re 
 
 fileConfig('parsers/logging_config.ini')
 logger = logging.getLogger()
-TEMP_IMG_FILE = '/tmp/pdf_image.png'
-TEMP_CSV_FILE = '/tmp/temp_data.csv'
 BUFFER_LENGTH = 10
+PAGE_BREAK_HANDLE = '"||page_break||"'
 
 class PDF2CSV(object):
+    def __init__(self):
+        self.page_break = PAGE_BREAK_HANDLE
+        self.temp_img_file = ''
+        self.temp_csv_file = ''
+
     def generate_csv_file(self, input_pdf_filepath, out_csv_filepath, is_header=True):
         input_pdf_obj = PdfFileReader(open(input_pdf_filepath, 'rb'))  
         total_pages = input_pdf_obj.getNumPages()
-        command = "rm -rf '%s'" % TEMP_CSV_FILE
+        department_name = os.path.basename(input_pdf_filepath).lower().split(".pdf")[0].decode('utf-8')
+        temp_handle = re.sub(r'[^A-Za-z]', '_', department_name) 
+        self.temp_img_file = '/tmp/pdf_image_%s.png' % temp_handle 
+        self.temp_csv_file = '/tmp/temp_data_%s.csv' % temp_handle
+        command = "rm -rf '%s'" % self.temp_csv_file
         os.system(command)
         for page_num in range(total_pages):
-            command = "convert -density 300 '%s'[%s] '%s'" % (input_pdf_filepath, page_num, TEMP_IMG_FILE)
+            command = "convert -density 300 '%s'[%s] '%s'" % (input_pdf_filepath, page_num, self.temp_img_file)
             os.system(command)
-            self.image_object = cv2.imread(TEMP_IMG_FILE)
+            self.image_object = cv2.imread(self.temp_img_file)
             image_height, image_width, channels = self.image_object.shape
             page_width, page_height = A4 
             self.horizontal_ratio = page_width/image_height
@@ -34,9 +42,11 @@ class PDF2CSV(object):
             lines = self.get_straight_lines()
             self.extend_lines_for_table(lines, is_header)
             table_bounds = self.get_table_bounds()
-            command = "tabula --pages %s --area %s,%s,%s,%s '%s' >> '%s'" % (page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], input_pdf_filepath, TEMP_CSV_FILE) 
+            command = "tabula --pages %s --area %s,%s,%s,%s '%s' >> '%s'" % (page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], input_pdf_filepath, self.temp_csv_file) 
             logger.info("Processing: %s" % command)
             os.system(command)
+            page_break_command = "echo '%s' >> '%s'" % (self.page_break, self.temp_csv_file)
+            os.system(page_break_command)
         self.process_csv_file(out_csv_filepath)
     
     def get_straight_lines(self):
@@ -124,7 +134,7 @@ class PDF2CSV(object):
             w = w + BUFFER_LENGTH
             cv2.rectangle(self.image_object,(x,y),(x+w,y+h),(0,0,0),2)
             table_bounds = {"top":y*self.vertical_ratio, "left":x*self.horizontal_ratio, "bottom":(h+y)*self.vertical_ratio, "right":(w+x)*self.horizontal_ratio}
-            cv2.imwrite(TEMP_IMG_FILE, self.image_object)
+            cv2.imwrite(self.temp_img_file, self.image_object)
         return table_bounds 
 
     def process_csv_file(self, out_csv_filepath): 
@@ -134,7 +144,7 @@ class PDF2CSV(object):
         empty_coloumns = []
         total_col_count = 0
         is_row_len_consistent = True
-        with open(TEMP_CSV_FILE, 'rb') as in_csv_file:
+        with open(self.temp_csv_file, 'rb') as in_csv_file:
             csv_reader = csv.reader(in_csv_file, delimiter=',')
             for row in csv_reader:
                 if ''.join(row).strip():
@@ -159,9 +169,28 @@ class PDF2CSV(object):
                 num += 1
         table = self.modify_table_data(table)
         for row in table:
-            csv_writer.writerow(row)
+            if not row[0] == self.page_break.replace('"',''): 
+                csv_writer.writerow(row)
         out_csv_file.close()
 
+    def delete_empty_coloumns(self, table):
+        '''Deletes empty coloumns generated from Tabula
+        '''
+        empty_coloumns = []
+        for col_count in range(len(table[0])):
+            total_col_val = ""
+            for row_count in range(len(table)):
+                total_col_val += table[row_count][col_count]
+            if not total_col_val.strip():
+                empty_coloumns.append(col_count)
+        #import pdb; pdb.set_trace()
+        for row in table:
+            num = 0
+            for col_count in empty_coloumns:
+                row.pop(col_count-num)
+                num += 1
+        return table
+    
     def modify_table_data(self, table):
         '''Opportunity for inheriting classes to modify table data as per individual needs
         '''
