@@ -38,37 +38,45 @@ class KeywordsExtractor(object):
                 except Exception, error_message:
                     logger.error("Unable to extract keywords for department: %s, error_message: %s" % (self.department_name, error_message))
 
-    def get_bold_text_phrases(self, file_name, is_other_starting_phrases=False): 
+    def get_bold_text_phrases(self, file_name, is_other_starting_phrases=False, single_word=False, page_num=None, lower_case=True): 
         '''Extract bold text phrases from input HTML object 
         '''
-        html_obj = self.get_html_object(file_name)
+        html_obj = self.get_html_object(file_name, page_num)
         dom_tree = etree.HTML(html_obj.read())
         bold_text_phrases = []
-        for phrase in dom_tree.xpath("//b/text()"):
-            phrase = self.clean_extracted_phrase(phrase, is_other_starting_phrases)
-            if phrase in self.skip_words or re.search(r'^no. [0-9]+/|^no. [0-9]+|^total-|^total -', phrase) or phrase == self.department_name.encode('utf-8'):
+        for phrase in dom_tree.xpath("//b/text()|//i/text()"):
+            phrase = self.clean_extracted_phrase(phrase, is_other_starting_phrases, lower_case)
+            if re.search(r'^no. [0-9]+/|^no. [0-9]+|^total-|^total -', phrase) or phrase == self.department_name.encode('utf-8'):
                 continue
-            if re.search(r'[a-z]{2,}', phrase):
-                if not phrase in bold_text_phrases and len(phrase.split(" ")) > 1:
+            if phrase in self.skip_words and not is_other_starting_phrases:
+                continue
+            if re.search(r'[A-Za-z]{2,}', phrase):
+                if not phrase in bold_text_phrases:
+                    if not single_word and not len(phrase.split(" ")) > 1:
+                        continue
                     bold_text_phrases.append(phrase.strip())
         return bold_text_phrases
 
-    def clean_extracted_phrase(self, phrase, is_other_starting_phrases):
+    def clean_extracted_phrase(self, phrase, is_other_starting_phrases, lower_case):
         '''Cleanse phrase text to remove unwanted characters and words
         '''
-        phrase = phrase.lower()
+        if lower_case:
+            phrase = phrase.lower()
         phrase = phrase.encode('utf-8').replace('\xa0', ' ').replace('\xc2', '').strip()
-        phrase = re.sub(r'[^a-zA-Z\d\)]$', '', phrase)
         phrase = re.sub(r'\s{2,}', ' ', phrase)
         if not is_other_starting_phrases:
+            phrase = re.sub(r'[^a-zA-Z\d\)]$', '', phrase)
             phrase = re.sub(r', ETC.$|, etc.$', '', phrase)
             phrase = re.sub(r'^other ', '', phrase).strip()
         return phrase
 
-    def get_html_object(self, file_name):
+    def get_html_object(self, file_name, page_num):
         '''Convert PDF file into HTML file using pdftohtml(http://sourceforge.net/projects/pdftohtml/)
         '''
-        command = "pdftohtml '%s' '%s' > %s" % (file_name, TEMP_INDEX_FILE, LOG_FILE)
+        if page_num:
+            command = "pdftohtml -f '%s' -l '%s' '%s' '%s' > %s" % (page_num, page_num, file_name, TEMP_INDEX_FILE, LOG_FILE)
+        else:
+            command = "pdftohtml '%s' '%s' > %s" % (file_name, TEMP_INDEX_FILE, LOG_FILE)
         os.system(command)
         html_obj = open(TEMP_HTML_FILE, "rb")
         return html_obj
