@@ -1,4 +1,4 @@
-'Class for extracting CSV files from single table PDF documents(A4, Landscape)'
+'Class for extracting CSV files from single table PDF documents'
 
 import argparse
 import numpy
@@ -23,7 +23,7 @@ class PDF2CSV(object):
         self.temp_csv_file = ''
 
     def generate_csv_file(self, input_pdf_filepath, out_csv_filepath, is_header=True, temp_file_postfix=""):
-        input_pdf_obj = PdfFileReader(open(input_pdf_filepath, 'rb'))  
+        input_pdf_obj = PdfFileReader(open(input_pdf_filepath, 'rb')) 
         total_pages = input_pdf_obj.getNumPages()
         department_name = os.path.basename(input_pdf_filepath).lower().split(".pdf")[0].decode('utf-8')
         temp_handle = re.sub(r'[^A-Za-z]', '_', department_name) 
@@ -45,9 +45,10 @@ class PDF2CSV(object):
             if lines != None:
                 lines = self.extend_lines_for_table(lines, is_header)
             table_bounds = self.get_table_bounds()
-            command = "tabula --pages %s --area %s,%s,%s,%s '%s' >> '%s'" % (page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], input_pdf_filepath, self.temp_csv_file) 
-            logger.info("Processing: %s" % command)
-            os.system(command)
+            if table_bounds:
+                command = "tabula --pages %s --area %s,%s,%s,%s '%s' >> '%s'" % (page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], input_pdf_filepath, self.temp_csv_file) 
+                logger.info("Processing: %s" % command)
+                os.system(command)
             page_break_command = "echo '%s' >> '%s'" % (self.page_break, self.temp_csv_file)
             os.system(page_break_command)
         self.process_csv_file(out_csv_filepath)
@@ -105,7 +106,7 @@ class PDF2CSV(object):
             max_vertical[2] = max_horizontal[3]
         if max_horizontal[1] >  max_vertical[3] and max_vertical[3] > 0:
             max_horizontal[1] = max_vertical[3]
-        if not found_vertical_line and found_horizontal_line:
+        if (not found_vertical_line and found_horizontal_line) or not is_header:
             max_vertical[1:3] = vertical_stretch 
         elif not found_horizontal_line and found_vertical_line:
             max_horizontal[1:3] = horizontal_stretch
@@ -120,6 +121,7 @@ class PDF2CSV(object):
             cv2.line(self.image_object,(x1,y1),(x2,y2),(0,0,0),4)
         cv2.line(self.image_object,(max_horizontal[2],max_vertical[1]),(max_horizontal[2],max_vertical[2]),(0,0,0),4)
         cv2.line(self.image_object,(max_horizontal[1],max_vertical[1]),(max_horizontal[1],max_vertical[2]),(0,0,0),4) 
+        cv2.imwrite(self.temp_img_file, self.image_object)
         return lines
 
     def get_max_stretch(self, coordinate, stretch_vector):
@@ -229,6 +231,7 @@ class PDF2CSV(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extracts CSV file from single table PDF document(A4)")
+    parser.add_argument("--header", help="Use if file consists of a page header(& we need to skip it)")
     parser.add_argument("input_file", help="Input PDF filepath")
     parser.add_argument("output_file", help="Output CSV filepath")
     args = parser.parse_args()
@@ -237,4 +240,4 @@ if __name__ == '__main__':
     if not args.input_file or not args.output_file: 
         print("Please pass input and output filepaths")
     else:
-        obj.generate_csv_file(args.input_file, args.output_file)
+        obj.generate_csv_file(args.input_file, args.output_file, is_header=args.header)
