@@ -14,6 +14,7 @@ import re
 fileConfig('parsers/logging_config.ini')
 logger = logging.getLogger()
 BUFFER_LENGTH = 10
+DEFAULT_PIXEL_COLOR = [255, 255, 255]
 PAGE_BREAK_HANDLE = '"||page_break||"'
 
 class PDF2CSV(object):
@@ -42,7 +43,7 @@ class PDF2CSV(object):
             self.horizontal_ratio = page_width/image_width
             self.vertical_ratio = page_height/image_height
             lines = self.get_straight_lines()
-            if lines != None:
+            if lines.tolist():
                 lines = self.extend_lines_for_table(lines, is_header)
             table_bounds = self.get_table_bounds()
             if table_bounds:
@@ -110,6 +111,7 @@ class PDF2CSV(object):
             max_vertical[1:3] = vertical_stretch 
         elif not found_horizontal_line and found_vertical_line:
             max_horizontal[1:3] = horizontal_stretch
+        max_vertical = self.fix_vertical_lines(lines, max_vertical)
         for line in lines:
             for x1,y1,x2,y2 in line:
                 if x1 == x2:
@@ -118,7 +120,7 @@ class PDF2CSV(object):
                 elif y1 == y2:
                     x1 = max_horizontal[1]
                     x2 = max_horizontal[2]
-            cv2.line(self.image_object,(x1,y1),(x2,y2),(0,0,0),4)
+                cv2.line(self.image_object,(x1,y1),(x2,y2),(0,0,0),4)
         cv2.line(self.image_object,(max_horizontal[2],max_vertical[1]),(max_horizontal[2],max_vertical[2]),(0,0,0),4)
         cv2.line(self.image_object,(max_horizontal[1],max_vertical[1]),(max_horizontal[1],max_vertical[2]),(0,0,0),4) 
         cv2.imwrite(self.temp_img_file, self.image_object)
@@ -132,6 +134,17 @@ class PDF2CSV(object):
         elif coordinate > stretch_vector[1]:
             stretch_vector[1] = coordinate + BUFFER_LENGTH
         return stretch_vector
+
+    def fix_vertical_lines(self, lines, max_vertical):
+        image_height, image_width, channels = self.image_object.shape
+        for line in lines:
+            for x1,y1,x2,y2 in line:
+                if x1 == x2:
+                    while(self.image_object[y2, x2].tolist() != DEFAULT_PIXEL_COLOR and y2 > 0):
+                        y2 -= 1
+                    if y2 < max_vertical[2]:
+                        max_vertical[2] = y2 
+        return max_vertical
 
     def get_horizontal_base_line(self, lines):
         '''Gives vertical coordinate of horizontal base line(aka header line)
