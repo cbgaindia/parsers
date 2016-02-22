@@ -1,4 +1,4 @@
-'Class for extracting CSV files from single table PDF documents'
+'Class for extracting CSV files from single table per page PDF documents'
 
 import argparse
 import numpy
@@ -7,9 +7,10 @@ import cv2
 import logging
 from logging.config import fileConfig
 import os
-from PyPDF2 import PdfFileReader
+from PyPDF2 import PdfFileReader,PdfFileWriter
 from reportlab.lib.pagesizes import A4, landscape
 import re 
+import subprocess
 
 fileConfig('parsers/logging_config.ini')
 logger = logging.getLogger()
@@ -23,37 +24,61 @@ class PDF2CSV(object):
         self.temp_img_file = ''
         self.temp_csv_file = ''
 
-    def generate_csv_file(self, input_pdf_filepath, out_csv_filepath, is_header=True, temp_file_postfix=""):
+    def generate_csv_file(self, input_pdf_filepath, out_csv_filepath, is_header=True, temp_file_postfix="", check_page_rotation=False):
         input_pdf_obj = PdfFileReader(open(input_pdf_filepath, 'rb')) 
         total_pages = input_pdf_obj.getNumPages()
         department_name = os.path.basename(input_pdf_filepath).lower().split(".pdf")[0].decode('utf-8')
-        temp_handle = re.sub(r'[^A-Za-z]', '_', department_name) 
+        temp_handle = re.sub(r'[^A-Za-z0-9]', '_', department_name) 
+        self.temp_pdf_file = '/tmp/temp_doc_%s%s.pdf' % (temp_handle, temp_file_postfix)
         self.temp_img_file = '/tmp/pdf_image_%s%s.png' % (temp_handle, temp_file_postfix) 
         self.temp_csv_file = '/tmp/temp_data_%s%s.csv' % (temp_handle, temp_file_postfix)
-        command = "rm -rf '%s'" % self.temp_csv_file
-        os.system(command)
+        out_file_obj = open(self.temp_csv_file,'w')
         for page_num in range(total_pages):
-            page_layout = input_pdf_obj.getPage(page_num)['/MediaBox'] 
-            page_width = float(page_layout[2])
-            page_height = float(page_layout[3])
-            command = "convert -density 300 '%s'[%s] '%s'" % (input_pdf_filepath, page_num, self.temp_img_file)
-            os.system(command)
-            self.image_object = cv2.imread(self.temp_img_file)
-            image_height, image_width, channels = self.image_object.shape
-            self.horizontal_ratio = page_width/image_width
-            self.vertical_ratio = page_height/image_height
-            lines = self.get_straight_lines()
-            if lines.tolist():
-                lines = self.extend_lines_for_table(lines, is_header)
-            table_bounds = self.get_table_bounds()
-            if table_bounds:
-                command = "tabula --pages %s --area %s,%s,%s,%s '%s' >> '%s'" % (page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], input_pdf_filepath, self.temp_csv_file) 
-                logger.info("Processing: %s" % command)
-                os.system(command)
-            page_break_command = "echo '%s' >> '%s'" % (self.page_break, self.temp_csv_file)
-            os.system(page_break_command)
+            page_table_data = self.generate_page_table_data(input_pdf_filepath, input_pdf_obj, page_num, is_header, check_page_rotation)
+            if page_table_data:
+                out_file_obj.write("\n%s" % page_table_data)
+            out_file_obj.write("\n%s" % self.page_break)
+        out_file_obj.close()
         self.process_csv_file(out_csv_filepath)
-    
+   
+    def generate_page_table_data(self, input_pdf_filepath, input_pdf_obj, page_num, is_header, check_page_rotation):
+        page_table_data = ""
+        page_layout = input_pdf_obj.getPage(page_num)['/MediaBox'] 
+        page_width = float(page_layout[2])
+        page_height = float(page_layout[3])
+        command = "convert -density 300 '%s'[%s] '%s'" % (input_pdf_filepath, page_num, self.temp_img_file)
+        subprocess.check_output(command, shell=True)
+        self.image_object = cv2.imread(self.temp_img_file)
+        image_height, image_width, channels = self.image_object.shape
+        self.horizontal_ratio = page_width/image_width
+        self.vertical_ratio = page_height/image_height
+        lines = self.get_straight_lines()
+        if type(lines).__module__ == "numpy":
+            lines = self.extend_lines_for_table(lines, is_header)
+        table_bounds = self.get_table_bounds()
+        if table_bounds:
+            command = "tabula --pages %s --area %s,%s,%s,%s '%s'" % (page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], input_pdf_filepath) 
+            logger.info("Processing: %s" % command)
+            try:
+                page_table_data = subprocess.check_output(command, shell=True)
+            except subprocess.CalledProcessError as e:
+                logger.error("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
+                page_table_data = e.output
+            if not page_table_data and check_page_rotation:
+                logger.info("Rotating Page")
+                rotated_pdf_obj = self.get_rotated_pdf_obj(input_pdf_obj, page_num)
+                page_table_data = self.generate_page_table_data(self.temp_pdf_file, rotated_pdf_obj, 0, is_header, check_page_rotation=False) 
+        return page_table_data
+
+    def get_rotated_pdf_obj(self, input_pdf_obj, page_num):
+        temp_pdf_obj = PdfFileWriter()
+        temp_pdf_obj.addPage(input_pdf_obj.getPage(page_num).rotateClockwise(90)) 
+        output_stream = file(self.temp_pdf_file, "wb")
+        temp_pdf_obj.write(output_stream)
+        output_stream.close()
+        rotated_pdf_obj = PdfFileReader(open(self.temp_pdf_file, 'rb')) 
+        return rotated_pdf_obj
+
     def get_straight_lines(self):
         '''Extract long straight lines using Probabilistic Hough Transform
         '''
@@ -247,7 +272,6 @@ if __name__ == '__main__':
     parser.add_argument("--header", help="Use if file consists of a page header(& we need to skip it)")
     parser.add_argument("input_file", help="Input PDF filepath")
     parser.add_argument("output_file", help="Output CSV filepath")
-    args = parser.parse_args()
     args = parser.parse_args()
     obj = PDF2CSV()
     if not args.input_file or not args.output_file: 
