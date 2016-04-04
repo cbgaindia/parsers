@@ -1,10 +1,12 @@
 'CSV generator for Expenditure Budget PDFs'
 
 import argparse
+import cv2
 import glob
 import logging
 from logging.config import fileConfig
 import re
+import numpy
 import os
 from parsers.pdf_to_csv import PDF2CSV
 from parsers.keywords_extractor import KeywordsExtractor
@@ -14,19 +16,47 @@ logger = logging.getLogger()
 
 SKIP_FILENAMES = ["all statements of budget estimates"]
 SECOND_HEADER_FIELD = "budget support"
-FIRST_HEADER_ROW = ['Index', 'Scheme', '', 'Actual', 'Actual', 'Actual', 'Budget', 'Budget', 'Budget', 'Revised', 'Revised', 'Revised', 'Budget', 'Budget', 'Budget']
-SECOND_HEADER_ROW = ['', 'Head of Development', 'Budget Support', 'IEBR', 'Total', 'Budget Support ', 'IEBR', 'Total', 'Budget Support', 'IEBR', 'Total', 'Budget Support', 'IEBR ', 'Total']
 HEADER_STUBS = ["HeadPlan", "HeadofDevB"]
-MIN_COL_COUNT = 5
+MIN_COL_COUNT = 3
+POSSIBLE_APERTURE_SIZES = [5,7] 
+FORMAT_DICT={
+    "form1": {
+        "FIRST_HEADER_ROW" : ['Index', 'Scheme', '', 'Actual', 'Actual', 'Actual', 'Budget', 'Budget', 'Budget', 'Revised', 'Revised', 'Revised', 'Budget', 'Budget', 'Budget'],
+        "SECOND_HEADER_ROW" : ['', 'Head of Development', 'Budget Support', 'IEBR', 'Total', 'Budget Support ', 'IEBR', 'Total', 'Budget Support', 'IEBR', 'Total', 'Budget Support', 'IEBR ', 'Total'] 
+    },
+    "form2": {
+        "FIRST_HEADER_ROW" : ['Index', 'Scheme', '', 'Budget', 'Budget', 'Budget', 'Revised', 'Revised', 'Revised', 'Budget', 'Budget', 'Budget'],
+        "SECOND_HEADER_ROW" : ['', 'Head of Development', 'Budget Support', 'IEBR', 'Total', 'Budget Support ', 'IEBR', 'Total', 'Budget Support', 'IEBR', 'Total'] 
+    }, 
+}
+
 class ExpenditureBudgetCSVGenerator(PDF2CSV):
     def __init__(self):
         super(ExpenditureBudgetCSVGenerator, self).__init__()
         self.header_rows_indices = [0,1,2]
         self.header_rows_cap = 5
+        self.header_format = None
+        self.header_padding_required = False
         self.keywords_extractor = KeywordsExtractor()        
         self.bold_keywords = []
 
+    def check_missing_vertical(self, lines):
+        found_missing_vertical = False
+        min_vertical = None
+        for line in lines:
+            for x1,y1,x2,y2 in line:
+                if x1 == x2:
+                    if not min_vertical or x1 < min_vertical:
+                        min_vertical = x1
+        if min_vertical:
+            for line in lines:
+                for x1,y1,x2,y2 in line:
+                    if y1 == y2 and min_vertical/2 < x1 < min_vertical:
+                        found_missing_vertical = x1
+        return found_missing_vertical
+    
     def modify_table_data(self, table):
+        table = self.correct_upper_header_rows(table)    
         table = self.merge_splitted_coloumns(table)
         if not table:
             return table
@@ -45,6 +75,13 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
         table = self.ensure_table_intergrity(table)
         table = self.add_index_coloumn(table)
         table = self.add_new_headers(table)
+        return table
+
+    def correct_upper_header_rows(self, table):
+        for num in range(0,5):
+            if table[num][0].strip() != "":
+                table[num] = [""] + table[num]
+                self.header_padding_required = True
         return table
 
     def merge_splitted_coloumns(self, table):
@@ -66,7 +103,7 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
             pagewise_table_list.append(temp_list)
         table = [] 
         for page_table in pagewise_table_list:
-            page_table = self.delete_empty_coloumns(page_table)
+            #page_table = self.delete_empty_coloumns(page_table)
             for row_index in range(len(page_table)):
                 while page_table[row_index][0].strip() == page_table[row_index][1].strip() == "":
                     page_table[row_index][0] += " " + page_table[row_index][1]
@@ -124,9 +161,11 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
         for row_index in range(len(table)):
             table[row_index][0] = table[row_index][0].strip()  
             table[row_index][1] = table[row_index][1].strip()  
+            if (re.match(r'head of', table[row_index][0].lower()) and re.match(r'budget', table[row_index][1].strip().lower())):
+                continue
             if (re.match(r'head of', table[row_index][1].lower()) and re.match(r'budget', table[row_index][2].strip().lower())):
                 continue
-            if len(table[row_index]) > len(SECOND_HEADER_ROW) or not " " in " ".join(table[row_index]).strip():
+            if len(table[row_index]) > len(FORMAT_DICT[self.header_format]["SECOND_HEADER_ROW"]) or not " " in " ".join(table[row_index]).strip():
                 while not table[row_index][0] and "".join(table[row_index][1:]).strip():
                     table[row_index].pop(0)
                     col_shifted = True
@@ -138,15 +177,23 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
        
     def correct_major_head_values(self, table):
         for row in table:
-            major_code_match = re.findall(r'[0-9]{4,}$', row[0].strip())
-            if major_code_match and len(row) < len(SECOND_HEADER_ROW):
+            if row[0].strip() == "Grand Total":
+                if row[1].strip():
+                    row.insert(1, "")
+                continue
+            major_code_match = re.findall(r'\s[0-9]{4,}$|^[0-9]{4,}$|^Head of Dev|Head of$| Dev$|\s{,1}Total$|^Net$', row[0].strip())
+            if major_code_match:
                 major_code = major_code_match[-1]
                 scheme_name = row[0].split(major_code)[0]
-                row[0] = scheme_name.strip()
-                if not row[1].strip():
+                if len(row) < len(FORMAT_DICT[self.header_format]["SECOND_HEADER_ROW"]):
+                    row[0] = scheme_name.strip()
+                    if not row[1].strip():
+                        row[1] = major_code
+                    else:
+                        row.insert(1, major_code)
+                elif not row[1].strip():
+                    row[0] = scheme_name.strip()
                     row[1] = major_code
-                else:
-                    row.insert(1, major_code)
         for row_index in range(2, len(table)):
             major_head_cell_val = table[row_index][1].strip() 
             if not major_head_cell_val or (re.match(r'head of', major_head_cell_val.lower()) and re.match(r'budget', table[row_index][2].strip().lower())):
@@ -167,7 +214,7 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
     def remove_dulicate_headers(self, table):
         empty_row_indices = []
         header_rows = []
-        seconary_header_stub = "".join(SECOND_HEADER_ROW).replace(" ", "")
+        seconary_header_stub = "".join(FORMAT_DICT[self.header_format]["SECOND_HEADER_ROW"]).replace(" ", "")
         for row_num in self.header_rows_indices:
             header_rows.append("".join(table[row_num]).replace(" ", ""))
         for row_num in range(self.header_rows_indices[-1]+1, len(table)):
@@ -186,11 +233,20 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
 
     def merge_splitted_rows(self, table):
         empty_row_indices = []
+        previous_data_slug = ""
         for row_index in range(1,len(table)):
             table[row_index][0] = table[row_index][0].strip()
-            if not table[row_index][0] or re.search(r'^([0-9]|Total|[A-C]\.)|\:$', table[row_index][0]) or (table[row_index][0].lower() in self.bold_keywords): 
+            if not table[row_index][0] or re.search(r'^(Total|[A-C]\.)|\:$', table[row_index][0]) or (re.sub(r'\s{2,}', ' ', table[row_index][0].lower()) in self.bold_keywords): 
+                continue
+            elif re.search(r'^[0-9]', table[row_index][0]) and not "".join(table[row_index][1:]).strip():
+                index_col_val = re.search(r'^(\d{1,2}(\.)*)+(\s){0,1}', table[row_index][0]).group(0).strip()
+                scheme_col_val = re.sub(r'\s{2,}', ' ', table[row_index][0].lower().replace(index_col_val, "").strip())
+                if scheme_col_val in self.bold_keywords:
+                    continue
+                previous_data_slug += table[row_index][0] + " "
+                empty_row_indices.append(row_index)
                 continue 
-            if table[row_index][0].strip() and not "".join(table[row_index][1:]).strip() and table[row_index-1][0].strip():
+            elif table[row_index][0].strip() and not "".join(table[row_index][1:]).strip() and table[row_index-1][0].strip():
                 parent_row_index = row_index
                 while parent_row_index > 1:
                     parent_row_index -= 1
@@ -198,6 +254,9 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
                         break
                 table[parent_row_index][0] = table[parent_row_index][0].strip() + " " + table[row_index][0].strip()
                 empty_row_indices.append(row_index)
+            elif previous_data_slug:
+                table[row_index][0] =  previous_data_slug + table[row_index][0]
+                previous_data_slug = ""
         num = 0
         for row_count in empty_row_indices:
             table.pop(row_count-num)
@@ -207,10 +266,10 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
     def add_index_coloumn(self, table):
         for row_index in range(len(table)):
             index_col_val = ""
-            table[row_index][0] = table[row_index][0].strip() 
+            table[row_index][0] = table[row_index][0].strip()
             if re.search(r'^(\d{1,2}(\.)*)+(\s){0,1}\D+', table[row_index][0]):
-                index_col_val = table[row_index][0].split(" ")[0]
-                table[row_index][0] = table[row_index][0].split(index_col_val)[-1]
+                index_col_val = re.search(r'^(\d{1,2}(\.)*)+(\s){0,1}', table[row_index][0]).group(0).strip()
+                table[row_index][0] = table[row_index][0].split(index_col_val)[-1].strip()
             table[row_index] = [index_col_val] + table[row_index]
         return table
     
@@ -222,7 +281,7 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
             if year_data_match:
                 year = year_data_match.group(0)
                 year_list.append(year)
-        table[0] = FIRST_HEADER_ROW[:]
+        table[0] = FORMAT_DICT[self.header_format]["FIRST_HEADER_ROW"][:]
         num = 3
         for year in year_list:
             for val in range(0,3):
@@ -238,17 +297,25 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
         header_row_index = None
         for row_index in range(len(table)):
             row = table[row_index]
-            col_value = row[2].lower().strip()
-            if col_value == SECOND_HEADER_FIELD:
+            if self.header_padding_required:
+                col_value = row[1].lower().strip()
+            else:
+                col_value = row[2].lower().strip()
+            if re.match(r'%s' % SECOND_HEADER_FIELD, col_value):
                 header_row_index = row_index
-                table[header_row_index] = SECOND_HEADER_ROW[:]
-            elif re.match("^Head of", "".join(row).strip()):
+                table[header_row_index] = FORMAT_DICT[self.header_format]["SECOND_HEADER_ROW"][:]
+            elif "Head of" in "".join(row).strip():
                 header_row_index = row_index
-                table[header_row_index] = SECOND_HEADER_ROW[:]
+                if table[header_row_index][0].strip(): 
+                    table[header_row_index+1][0] = (table[header_row_index][0] + " " + table[header_row_index + 1][0]).strip() 
+                table[header_row_index] = FORMAT_DICT[self.header_format]["SECOND_HEADER_ROW"][:]
                 merge_up_required = True
                 break
         if merge_up_required:
-            table.pop(header_row_index+1)
+            if table[header_row_index+1][0]:
+                table[header_row_index+1] = [table[header_row_index+1][0]]
+            else:
+                table.pop(header_row_index+1)
         return table
 
     def merge_up_rows(self, row_index, table):
@@ -257,7 +324,8 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
         table.pop(row_index+1)
         return table
 
-    def generate_expenditure_budgets_csv(self, doc_dir):
+    def generate_expenditure_budgets_csv(self, doc_dir, header_format, page_header, identify_columns):
+        self.header_format = header_format
         year_data_match = re.search(r'[0-9]{4}\-[0-9]{2,}', doc_dir) 
         if year_data_match:
             year = year_data_match.group(0) 
@@ -268,13 +336,13 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
                 try:
                     self.bold_keywords = self.keywords_extractor.get_bold_text_phrases(file_name, is_other_starting_phrases=True, single_word=True)
                     logger.info("BOLD Keywords: %s" % str(self.bold_keywords))
-                    self.generate_csv_file(file_name, file_name.split(".pdf")[0] + ".csv", temp_file_postfix=year)
+                    self.generate_csv_file(file_name, file_name.split(".pdf")[0] + ".csv", is_header=page_header, identify_columns=identify_columns, temp_file_postfix=year)
                 except Exception, error_message:
                     logger.error("Unable to extract CSV for department: %s, error_message: %s" % (department_name, error_message), exc_info = True)
 
     def ensure_table_intergrity(self, table):
         for row in table:
-            if len(row) > len(SECOND_HEADER_ROW):
+            if len(row) > len(FORMAT_DICT[self.header_format]["SECOND_HEADER_ROW"]):
                 col_to_delete = []
                 for col_index in range(1, len(row)):
                     if not row[col_index].strip():
@@ -284,16 +352,19 @@ class ExpenditureBudgetCSVGenerator(PDF2CSV):
                     for col_index in col_to_delete:
                         row.pop(col_index-num)
                         num += 1
-            while len(row) < len(SECOND_HEADER_ROW):
+            while len(row) < len(FORMAT_DICT[self.header_format]["SECOND_HEADER_ROW"]):
                 row.append("")
         return table
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generates CSV files from Expenditure Budgets directory")
     parser.add_argument("doc_dir", help="Input directory path for Expenditure Budgets")
+    parser.add_argument("header_format", help="Header format out of following: %s" % str(FORMAT_DICT))
+    parser.add_argument("--columns", help="Identify columns and then parse")
+    parser.add_argument("--page_header", help="Use if file consists of a page header(& we need to skip it)")
     args = parser.parse_args()
     obj = ExpenditureBudgetCSVGenerator()
     if not args.doc_dir: 
         print("Please input directory to begin CSV extraction")
     else:
-        obj.generate_expenditure_budgets_csv(args.doc_dir)
+        obj.generate_expenditure_budgets_csv(args.doc_dir, args.header_format, page_header=args.page_header, identify_columns=args.columns)
