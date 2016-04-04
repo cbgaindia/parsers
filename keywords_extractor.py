@@ -6,6 +6,7 @@ import logging
 from logging.config import fileConfig
 from lxml import etree
 import re
+import time
 
 DOC_DIR = "union_budgets/2015-16/Expenditure Budget/Volume II/"
 OUT_FILE = "union_budgets/2015-16/expenditure_budget_keywords_map.csv"
@@ -44,6 +45,7 @@ class KeywordsExtractor(object):
         html_obj = self.get_html_object(file_name, page_num)
         dom_tree = etree.HTML(html_obj.read())
         bold_text_phrases = []
+        previous_keyword = None
         for phrase in dom_tree.xpath("//b/text()|//i/text()"):
             phrase = self.clean_extracted_phrase(phrase, is_other_starting_phrases, lower_case)
             if re.search(r'^no. [0-9]+/|^no. [0-9]+|^total-|^total -', phrase) or phrase == self.department_name.encode('utf-8'):
@@ -73,12 +75,15 @@ class KeywordsExtractor(object):
     def get_html_object(self, file_name, page_num):
         '''Convert PDF file into HTML file using pdftohtml(http://sourceforge.net/projects/pdftohtml/)
         '''
+        file_stub = re.sub(r'\s', '_', os.path.basename(file_name).split(".pdf")[0].lower().strip())
+        index_file = TEMP_INDEX_FILE.replace(".html", "_%s.html" % file_stub) 
+        html_file = TEMP_INDEX_FILE.replace(".html", "_%ss.html" % file_stub) 
         if page_num:
-            command = "pdftohtml -f '%s' -l '%s' '%s' '%s' > %s" % (page_num, page_num, file_name, TEMP_INDEX_FILE, LOG_FILE)
+            command = "pdftohtml -f '%s' -l '%s' '%s' '%s' > %s" % (page_num, page_num, file_name, index_file, LOG_FILE)
         else:
-            command = "pdftohtml '%s' '%s' > %s" % (file_name, TEMP_INDEX_FILE, LOG_FILE)
+            command = "pdftohtml '%s' '%s' > %s" % (file_name, index_file, LOG_FILE)
         os.system(command)
-        html_obj = open(TEMP_HTML_FILE, "rb")
+        html_obj = open(html_file, "rb")
         return html_obj
 
 if __name__ == '__main__':
