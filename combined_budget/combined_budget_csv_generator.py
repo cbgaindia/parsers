@@ -146,7 +146,7 @@ class CombinedBudgetCSVGenerator(PDF2CSV):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generates CSV files from Combined Budget PDF Document(IPFS)")
     parser.add_argument("input_file", help="Input filepath for budget document")
-    parser.add_argument("output_dir", help="Output filepath for budget document")
+    parser.add_argument("output_dir", help="Output directory for budget document")
     args = parser.parse_args()
     obj = CombinedBudgetCSVGenerator()
     if not args.input_file or not args.output_dir: 
