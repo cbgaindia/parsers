@@ -121,31 +121,32 @@ class PDF2CSV(object):
         if is_header:
             horizontal_base_line = self.get_horizontal_base_line(lines)
         vertical_base_line = 0
-        for line in lines:
-            for x1,y1,x2,y2 in line:
-                if x1 == x2:
-                    if not found_vertical_line:
-                        found_vertical_line = True 
-                    length = (y1 - y2)
-                    if max_vertical[0] <= length:
-                        max_vertical[0] = length
-                        max_vertical[1] = y1 + BUFFER_LENGTH
-                        max_vertical[2] = y2 - BUFFER_LENGTH
-                    if (max_vertical[3] == 0 or max_vertical[3] > (x1 - BUFFER_LENGTH)) and (x1 - BUFFER_LENGTH) > vertical_base_line: 
-                        max_vertical[3] = (x1 - BUFFER_LENGTH)
-                    horizontal_stretch = self.get_max_stretch(x1, horizontal_stretch)
-                elif y1 == y2:
-                    if not found_horizontal_line:
-                        found_horizontal_line = True
-                    length = (x2 - x1)
-                    if max_horizontal[0] <= length:
-                        max_horizontal[0] = length
-                        max_horizontal[1] = x1 - BUFFER_LENGTH
-                        max_horizontal[2] = x2 + BUFFER_LENGTH
-                    if (max_horizontal[3] == 0 or max_horizontal[3] > (y1 - BUFFER_LENGTH)) and (y1 - BUFFER_LENGTH) > horizontal_base_line: 
-                        max_horizontal[3] = (y1 - BUFFER_LENGTH)
-                    if not is_header:
-                        vertical_stretch = self.get_max_stretch(y1, vertical_stretch)
+        if type(lines).__module__ == "numpy":
+            for line in lines:
+                for x1,y1,x2,y2 in line:
+                    if x1 == x2:
+                        if not found_vertical_line:
+                            found_vertical_line = True 
+                        length = (y1 - y2)
+                        if max_vertical[0] <= length:
+                            max_vertical[0] = length
+                            max_vertical[1] = y1 + BUFFER_LENGTH
+                            max_vertical[2] = y2 - BUFFER_LENGTH
+                        if (max_vertical[3] == 0 or max_vertical[3] > (x1 - BUFFER_LENGTH)) and (x1 - BUFFER_LENGTH) > vertical_base_line: 
+                            max_vertical[3] = (x1 - BUFFER_LENGTH)
+                        horizontal_stretch = self.get_max_stretch(x1, horizontal_stretch)
+                    elif y1 == y2:
+                        if not found_horizontal_line:
+                            found_horizontal_line = True
+                        length = (x2 - x1)
+                        if max_horizontal[0] <= length:
+                            max_horizontal[0] = length
+                            max_horizontal[1] = x1 - BUFFER_LENGTH
+                            max_horizontal[2] = x2 + BUFFER_LENGTH
+                        if (max_horizontal[3] == 0 or max_horizontal[3] > (y1 - BUFFER_LENGTH)) and (y1 - BUFFER_LENGTH) > horizontal_base_line: 
+                            max_horizontal[3] = (y1 - BUFFER_LENGTH)
+                        if not is_header:
+                            vertical_stretch = self.get_max_stretch(y1, vertical_stretch)
         if max_vertical[2] > max_horizontal[3] and max_horizontal[3] > 0:
             max_vertical[2] = max_horizontal[3]
         if max_horizontal[1] >  max_vertical[3] and max_vertical[3] > 0:
@@ -154,7 +155,7 @@ class PDF2CSV(object):
             max_vertical[1:3] = vertical_stretch 
         elif not found_horizontal_line and found_vertical_line:
             max_horizontal[1:3] = horizontal_stretch
-        #max_vertical = self.fix_vertical_lines(lines, max_vertical)
+        max_vertical = self.fix_vertical_lines(lines, max_vertical)
         table_limits["horizontal"] = {"stretch": horizontal_stretch, "found": found_horizontal_line, "max": max_horizontal}
         table_limits["vertical"] = {"stretch": vertical_stretch, "found": found_vertical_line, "max": max_vertical}
         return table_limits

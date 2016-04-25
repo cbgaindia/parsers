@@ -15,7 +15,7 @@ TEMP_INDEX_FILE = "/tmp/page.html"
 TEMP_HTML_FILE = "/tmp/pages.html"
 LOG_FILE = "/tmp/log"
 SKIP_WORDS = ["total", "b. investment in public enterprises", "c. plan outlay", "other programmes", "grand total", "central plan", "state plan", "union territory plans", "union territory plans (with legislature)"]
-
+DEFAULT_KEYWORD_XPATH = "//b/text()|//i/text()"  
 fileConfig('parsers/logging_config.ini')
 logger = logging.getLogger()
 
@@ -39,14 +39,14 @@ class KeywordsExtractor(object):
                 except Exception, error_message:
                     logger.error("Unable to extract keywords for department: %s, error_message: %s" % (self.department_name, error_message))
 
-    def get_bold_text_phrases(self, file_name, is_other_starting_phrases=False, single_word=False, page_num=None, lower_case=True): 
+    def get_bold_text_phrases(self, file_name, keyword_xpath=DEFAULT_KEYWORD_XPATH,is_other_starting_phrases=False, single_word=False, page_num=None, lower_case=True): 
         '''Extract bold text phrases from input HTML object 
         '''
         html_obj = self.get_html_object(file_name, page_num)
         dom_tree = etree.HTML(html_obj.read())
         bold_text_phrases = []
         previous_keyword = None
-        for phrase in dom_tree.xpath("//b/text()|//i/text()"):
+        for phrase in dom_tree.xpath(keyword_xpath):
             phrase = self.clean_extracted_phrase(phrase, is_other_starting_phrases, lower_case)
             if re.search(r'^no. [0-9]+/|^no. [0-9]+|^total-|^total -', phrase) or phrase == self.department_name.encode('utf-8'):
                 continue
