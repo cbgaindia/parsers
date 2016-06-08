@@ -60,12 +60,13 @@ class PDF2CSV(object):
         self.vertical_ratio = page_height/image_height
         lines = self.get_straight_lines() 
         table_limits = self.get_table_limits(lines, is_header)
+        column_coordinates = None
         if identify_columns:
             lines = self.modify_image(lines, table_limits)
         if type(lines).__module__ == "numpy":
             lines,column_coordinates = self.extend_lines_for_table(lines, is_header, table_limits)
         table_bounds = self.get_table_bounds()
-        if table_bounds:
+        if table_bounds and column_coordinates:
             if identify_columns:
                 column_values = ""
                 for value in column_coordinates:
@@ -216,6 +217,8 @@ class PDF2CSV(object):
             min_vertical_index = 2
         else:
             min_vertical_index = 1
+        if not type(lines).__module__ == "numpy":
+            return max_vertical
         for line in lines:
             for x1,y1,x2,y2 in line:
                 if x1 == x2:
