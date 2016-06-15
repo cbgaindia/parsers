@@ -37,7 +37,7 @@ class MunicipalXLSX2CSV():
     def generate_csv_file(self, worksheet, worksheet_name, start_index, output_dir):
         if not worksheet_name:
             worksheet_name = worksheet.name
-        print("Generating CSV file for Sheet: %s ||| %s" % (str(worksheet.name), worksheet_name))
+        logger.info("Generating CSV file for Sheet: %s ||| %s" % (str(worksheet.name), worksheet_name))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         file_name = worksheet_name.replace("/", '|')
@@ -50,7 +50,6 @@ class MunicipalXLSX2CSV():
             elif row_value_join.lower() == LEGEND_SLUG:
                 break
             else:
-                head_found = True
                 csv_writer.writerow([str(x).replace("\n", " ") for x in worksheet.row_values(row_index)])
         out_csv_file.close()
 
