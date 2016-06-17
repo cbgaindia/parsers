@@ -1,6 +1,4 @@
 import argparse
-:w
-
 import csv
 import glob
 import logging
@@ -14,9 +12,11 @@ fileConfig('parsers/logging_config.ini')
 logger = logging.getLogger()
 reload(sys)
 sys.setdefaultencoding('utf-8')
-FILE_REGEX = "Demand|Budget at a glance|Receipts"
-CURRENCY_SLUG_REGEX = "\(In Thousands of Rupees\)|\(Rupees in thousand\)|\( In Lakhs of Rupees\)"
+FILE_REGEX = "Demand|Budget at a glance|Receipt"
+BUDGET_START_SLUG = "Actual|Budget"
+CURRENCY_SLUG_REGEX = "\(In Thousands of Rupees\)|\(Rupees in thousand\)|\( In Lakhs of Rupees\)|\(Rs. in thousand\)"
 HEADER_ROWS_NUM = 3
+NOTES_SLUG = "Notes:|Note:"
 
 class SikkimBudgetCSVGenerator():
     def __init__(self):
@@ -27,7 +27,7 @@ class SikkimBudgetCSVGenerator():
         for input_file in budget_files:
             logger.info("Processing input: %s" % input_file)
             workbook = xlrd.open_workbook(input_file)
-            worksheet = workbook.sheet_by_index(0) 
+            worksheet = workbook.sheet_by_index(0)
             file_name = "".join(worksheet.row_values(0)).strip() + " - " + "".join(worksheet.row_values(1)).strip() 
             start_index = 0
             for row_index in xrange(2, worksheet.nrows): 
@@ -42,18 +42,21 @@ class SikkimBudgetCSVGenerator():
 
     def create_file_header(self, worksheet, start_index):
         header_row = []
+        budget_values_start_index = 0
         for index in range(start_index, start_index+HEADER_ROWS_NUM):
             temp_header = worksheet.row_values(index)
             for col_index in range(len(temp_header)):
-                temp_header[col_index] = temp_header[col_index].replace("\n", " ").strip()
+                if not budget_values_start_index and re.findall(r"%s" % BUDGET_START_SLUG, str(temp_header[col_index]).strip()):
+                    budget_values_start_index = col_index
+                temp_header[col_index] = str(temp_header[col_index]).replace("\n", " ").strip()
                 temp_header[col_index] = re.sub(r"\s{2,}", " ", temp_header[col_index])
-                if col_index and not temp_header[col_index].strip():
+                if budget_values_start_index and col_index > budget_values_start_index and not temp_header[col_index].strip():
                     temp_header[col_index] = temp_header[col_index-1]
                 if len(header_row)-1 < col_index:
                     header_row.append(temp_header[col_index]) 
                 elif temp_header[col_index].strip():
-                    header_row[col_index] += " " + temp_header[col_index] 
-        for index in range(3,len(header_row)):
+                    header_row[col_index] += " " + temp_header[col_index]
+        for index in range(budget_values_start_index, len(header_row)):
             header_row[index] = header_row[index] + " " + self.currency_handle
         if not header_row[0].strip(): 
             header_row[0] = "Major Head and Totals"
@@ -66,9 +69,10 @@ class SikkimBudgetCSVGenerator():
         out_csv_file = open(output_dir + "/" + file_name + ".csv", "wb")
         csv_writer = csv.writer(out_csv_file, delimiter=',')
         csv_writer.writerow(header_row)
+        col_index_join = "".join(str(float(x)) for x in range(1,len(header_row)+1))
         for row_index in xrange(start_index+HEADER_ROWS_NUM, worksheet.nrows):
             row_value_join = "".join([str(x).encode('string_escape') for x in worksheet.row_values(row_index)]).strip() 
-            if not row_value_join:
+            if not row_value_join or row_value_join == col_index_join or re.findall(r"%s" % NOTES_SLUG, str(worksheet.row_values(row_index)[0])):
                 continue
             else:
                 csv_writer.writerow(worksheet.row_values(row_index))      
@@ -76,14 +80,15 @@ class SikkimBudgetCSVGenerator():
 
     def find_files_for_conversion(self, input_dir):
         budget_files = []
-        files = glob.glob('%s/**/**/*.xlsx' % input_dir)
+        files = glob.glob('%s/**/**/*.xls*' % input_dir)
+        files += glob.glob('%s/**/**/*.XLS' % input_dir)
         for file_name in files:
             if re.findall(r"%s" % FILE_REGEX, file_name):
                 budget_files.append(file_name)
         return budget_files
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Generates CSV files for Sikkim Budget(from XLSX Documents)")
+    parser = argparse.ArgumentParser(description="Generates CSV files for Sikkim Budget(from XLSX & XLS Documents)")
     parser.add_argument("input_dir", help="Input directory for budget documents")
     args = parser.parse_args()
     if not args.input_dir:
