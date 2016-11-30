@@ -6,10 +6,10 @@ A collection of scripts to parse Indian Budget documents into clean machine read
 Currently tested on Linux and Mac OS
 
 1. Clone the repository
-    git clone https://github.com/cbgaindia/parsers.git`
+`git clone https://github.com/cbgaindia/parsers.git`
 
 2. Install package dependencies:
-    pip install -r requirements.txt`
+`pip install -r requirements.txt`
 
 3. Install software dependencies:
   - Tabula Java: https://github.com/tabulapdf/tabula-java
