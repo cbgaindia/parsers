@@ -30,7 +30,7 @@ class KarnatakaBudgetCSVGenerator(PDF2CSV):
         '''
         self.input_file = input_file
         self.output_dir = output_dir
-        self.generate_csv_file(input_file, input_file.split(".pdf")[0] + ".csv", is_header=False, identify_columns=True)
+        self.generate_csv_file(input_file, input_file.split(".pdf")[0] + ".csv", is_header=True, identify_columns=True)
 
     def modify_table_data(self, table):
         '''Modifying output of PDF to CSV to clean, wrangle and generate multiple CSV files
@@ -199,22 +199,25 @@ class KarnatakaBudgetCSVGenerator(PDF2CSV):
         for page_num in pagewise_table:
             keyword_list = self.keywords_extractor.get_bold_text_phrases(self.input_file, keyword_xpath="//text()", is_other_starting_phrases=True, single_word=True, page_num=page_num, lower_case=False)
             page_header = []
-            for keyword in keyword_list:
+            for keyword_index in range(len(keyword_list)):
+                keyword = keyword_list[keyword_index]
                 keyword = re.sub(self.empty_char_regex, '', keyword).replace('\x90', '-')
                 if not '\\x' in keyword.encode('string-escape') and not "<!--" in keyword:
                     if " ".join(self.currency_slug.split(" ")[1:]) in keyword or "in Lakhs" in keyword:
                         break
                     keyword = keyword.decode('unicode_escape').encode('ascii','ignore').strip()
                     keyword = re.sub(r"\s{2,}", " ", keyword)
+                    if "VOLUME" in keyword and keyword_index > 0:
+                        keyword = keyword + keyword_list[keyword_index-1].split(":")[-1] 
                     page_header.append(keyword.strip())
-            page_headers_map[page_num] = "|".join(page_header)
+            page_headers_map[page_num] = "|".join(page_header[:3])
         return page_headers_map
 
     def write_page_table(self, file_name, file_table):
         '''Creating new file and writing file table in it
         '''
+        file_name = file_name.split("|")[2].strip() + "|" + file_name.split("|")[1].strip()
         file_name = file_name.replace("/", "|")
-        file_name = file_name.split("|")[-1].strip()
         out_csv_file = open(self.output_dir + "/" + file_name + ".csv", "wb")
         csv_writer = csv.writer(out_csv_file, delimiter=',')
         for row in file_table:
