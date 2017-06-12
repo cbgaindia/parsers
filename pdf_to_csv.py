@@ -251,7 +251,7 @@ class PDF2CSV(object):
             if cv2.contourArea(contour) > max_contour_size:
                 contour_size = cv2.contourArea(contour)
                 x,y,w,h = cv2.boundingRect(contour)
-                if x>1 and y>1 and contour_size > max_contour_size:
+                if x>0 and y>0 and contour_size > max_contour_size:
                     best_match_contour_index = count
                     max_contour_size = contour_size
             count += 1
