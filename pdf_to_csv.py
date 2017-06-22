@@ -22,6 +22,9 @@ DEFAULT_APERTURE_SIZE = 3
 
 
 class PDF2CSV(object):
+    """
+    Base Class for converting pdf to csv.
+    """
     def __init__(self):
         self.page_break = PAGE_BREAK_HANDLE
         self.temp_img_file = ''
@@ -30,6 +33,26 @@ class PDF2CSV(object):
     def generate_csv_file(self, input_pdf_filepath, out_csv_filepath,
                           is_header=True, identify_columns=False,
                           temp_file_postfix="", check_page_rotation=False):
+        """
+        Generate the csv file for a given pdf.
+
+        We loop through all the pages from the pdf and generate tables from it.
+
+        Args:
+            - input_pdf_filepath (string): The path of the pdf to be parsed.
+            - out_csv_filepath (string): The path where the parsed csv to
+                be stored.
+            - is_header (boolean): Whether we should be looking
+                for headers while detecting table limits. Defaults to True
+            - identify_columns (boolean): ????
+            - temp_file_postfix (string): optional postfix for the temp files
+                generated for the processing. Defaults to an empty string ""
+            - check_page_rotation (boolean): The program tries to detect the
+                table with multiple rotation angles.
+
+        Returns:
+            None
+        """
         input_pdf_obj = PdfFileReader(open(input_pdf_filepath, 'rb'))
         total_pages = input_pdf_obj.getNumPages()
         department_name = os.path.basename(input_pdf_filepath).lower().split(".pdf")[0].decode('utf-8')
@@ -57,6 +80,29 @@ class PDF2CSV(object):
     def generate_page_table_data(self, input_pdf_filepath, input_pdf_obj,
                                  page_num, is_header, identify_columns,
                                  check_page_rotation):
+        '''Convert a pdf page into table using image processing and tabula.
+
+        This function acts as the pipeline through which we extract tables
+        from pdf. The pipeline consists of the following steps : -
+            - Check Rotation of the page.
+            - Generate Image of the page using `convert` command.
+            - Detect lines for the table.
+            - Use tabula with the coordinates detected from the previous
+                processes.
+
+        Args:
+            - input_pdf_filepath (string): The path of the pdf to be parsed.
+            - input_pdf_obj (obj:`PdfFileReader`): pdf file reader object used
+                to access information from the pdf.
+            - page_num (int): The page number to detect tables on.
+            - is_header (boolean): Used while detecting table limits.
+            - indentify_columns (boolean): ???
+            - check_page_rotation (boolean): The program tries to detect the
+                table with multiple rotation angles.
+
+        Returns:
+            A (???? format ????) table data extracted from the page.
+        '''
         page_table_data = ""
         page_layout = input_pdf_obj.getPage(page_num)['/MediaBox']
         if '/Rotate' in input_pdf_obj.getPage(page_num) and input_pdf_obj.getPage(page_num)['/Rotate'] == 90:
@@ -105,9 +151,22 @@ class PDF2CSV(object):
                 logger.info("Rotating Page")
                 rotated_pdf_obj = self.get_rotated_pdf_obj(input_pdf_obj, page_num)
                 page_table_data = self.generate_page_table_data(self.temp_pdf_file, rotated_pdf_obj, 0, is_header, check_page_rotation=False)
+        else:
+            warning_message = "No table found on {0} from file {1}"
+            logger.warning(warning_message.format(page_num, input_pdf_filepath))
         return page_table_data
 
     def get_rotated_pdf_obj(self, input_pdf_obj, page_num):
+        '''Rotate a given pdf clockwise 90 degress.
+
+        Args:
+            input_pdf_obj (obj:`PdfFileReader`): PdfFileReader object of the
+                file to rotate.
+            page_num (int): Page number to rotate.
+
+        Returns:
+            A PdfFileReader object of the rotated pdf.
+        '''
         temp_pdf_obj = PdfFileWriter()
         temp_pdf_obj.addPage(input_pdf_obj.getPage(page_num).rotateClockwise(90))
         output_stream = file(self.temp_pdf_file, "wb")
@@ -117,8 +176,7 @@ class PDF2CSV(object):
         return rotated_pdf_obj
 
     def get_straight_lines(self, aperture_size=DEFAULT_APERTURE_SIZE):
-        '''
-        Extract long straight lines using Probabilistic Hough Transform
+        '''Extract long straight lines using Probabilistic Hough Transform
         '''
         image_gray = cv2.cvtColor(self.image_object, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(image_gray, 100, 150, apertureSize=aperture_size)
@@ -129,8 +187,7 @@ class PDF2CSV(object):
         return lines
 
     def get_table_limits(self, lines, is_header):
-        '''
-        Get maximum horizontal and vertical line coordinates for bounding box
+        '''Get maximum horizontal and vertical line coordinates for bounding box
         '''
         table_limits = {}
         found_horizontal_line = False
