@@ -21,3 +21,5 @@ All parsers are arranged according to tiers of government, to see usage run scri
 ## Related Repository
 To scrape budget data files from various sources, please refer to https://github.com/cbgaindia/scrapers
 
+## Documnetation
+Please refer to http://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html for documentation style guide lines.
