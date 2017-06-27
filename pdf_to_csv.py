@@ -177,6 +177,21 @@ class PDF2CSV(object):
 
     def get_straight_lines(self, aperture_size=DEFAULT_APERTURE_SIZE):
         '''Extract long straight lines using Probabilistic Hough Transform
+
+        Details on how Hough Transform and HooughLinesP works can be found
+        [here](http://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_houghlines/py_houghlines.html)
+        The pipeline to extract lines have the following operations : -
+            - Convert Image to gray
+            - Use canny edge detection to detect edges, more details
+              [here](http://docs.opencv.org/trunk/da/d22/tutorial_py_canny.html)
+            - Use HooughLinesP to figure out horizontal and vertical lines.
+
+        Args:
+            aperture_size ???
+
+        Returns:
+            A numpy matrix of positions for possible lines, with each row
+            containing x1, y1, x2, y2.
         '''
         image_gray = cv2.cvtColor(self.image_object, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(image_gray, 100, 150, apertureSize=aperture_size)
@@ -188,6 +203,14 @@ class PDF2CSV(object):
 
     def get_table_limits(self, lines, is_header):
         '''Get maximum horizontal and vertical line coordinates for bounding box
+
+        Args:
+            lines (obj: `numpy.Array`): a matrix of coordinates of line positions.
+            is_header (boolean): whether to consider header to figure out
+                position.
+
+        Returns:
+            A dictionary containing the table limits.
         '''
         table_limits = {}
         found_horizontal_line = False
@@ -242,6 +265,18 @@ class PDF2CSV(object):
     def extend_lines_for_table(self, lines, is_header, table_limits):
         '''
         Extend straight lines to create table bounds
+
+        This connects the table boundary and the lines to create a concise
+        bounding box around the table with columnar separations.
+
+        Args:
+            lines (obj: `numpy.Array`):  a matrix of coordinates of line positions.
+            is_header (boolean): whether to consider header to figure out
+                position.
+            table_limits (obj: `dict`): table bounding boxes
+
+        Returns:
+            A set of lines and column_coordinates
         '''
         column_coordinates = []
         for line in lines:
@@ -281,6 +316,17 @@ class PDF2CSV(object):
         return stretch_vector
 
     def get_clubbed_column_coordinates(self, column_coordinates):
+        '''
+        A helper function for extend_lines_for_table, formats the
+        column_coordinates generated.
+
+        Args:
+            column_coordinates (obj: `list`): list of column coordinates
+                detected.
+
+        Returns:
+            A list of formatted column coordinates
+        '''
         clubbed_column_coordinates = []
         column_cluster_list = []
         column_coordinates = list(set(column_coordinates))
