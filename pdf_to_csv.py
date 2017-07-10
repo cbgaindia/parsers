@@ -32,7 +32,8 @@ class PDF2CSV(object):
 
     def generate_csv_file(self, input_pdf_filepath, out_csv_filepath,
                           is_header=True, identify_columns=False,
-                          temp_file_postfix="", check_page_rotation=False):
+                          temp_file_postfix="", check_page_rotation=False,
+                          measure_file=None):
         """
         Generate the csv file for a given pdf.
 
@@ -54,6 +55,9 @@ class PDF2CSV(object):
             None
         """
         input_pdf_obj = PdfFileReader(open(input_pdf_filepath, 'rb'))
+        measure_file_obj = None
+        if measure_file:
+            measure_file_obj = self.init_measure_log_file(measure_file)
         total_pages = input_pdf_obj.getNumPages()
         department_name = os.path.basename(input_pdf_filepath).lower().split(".pdf")[0].decode('utf-8')
         temp_handle = re.sub(r'[^A-Za-z0-9]', '_', department_name)
@@ -70,16 +74,32 @@ class PDF2CSV(object):
                                                             page_num,
                                                             is_header,
                                                             identify_columns,
-                                                            check_page_rotation)
+                                                            check_page_rotation,
+                                                            measure_file_obj)
             if page_table_data:
                 out_file_obj.write("\n%s" % page_table_data)
             out_file_obj.write("\n%s" % self.page_break)
         out_file_obj.close()
         self.process_csv_file(out_csv_filepath)
 
+    def init_measure_log_file(self, measure_file_name):
+        '''Initialize a file object and add headers.
+
+        Args:
+            - measure_file_name (string): name/path of the file in string
+                format.
+
+        Returns:
+            The file object.
+        '''
+        measure_file_obj = open(measure_file_name, 'w')
+        measure_file_obj.write('filename,pag_num,table_detected,column_coordinates\n')
+        measure_file_obj.flush()
+        return measure_file_obj
+
     def generate_page_table_data(self, input_pdf_filepath, input_pdf_obj,
                                  page_num, is_header, identify_columns,
-                                 check_page_rotation):
+                                 check_page_rotation, measure_file_obj=None):
         '''Convert a pdf page into table using image processing and tabula.
 
         This function acts as the pipeline through which we extract tables
@@ -99,6 +119,8 @@ class PDF2CSV(object):
             - indentify_columns (boolean): ???
             - check_page_rotation (boolean): The program tries to detect the
                 table with multiple rotation angles.
+            - measure_file_obj (obj:`file`, default:None): A file obj in which to log parsing data,
+                if its None the log is not generated.
 
         Returns:
             A (???? format ????) table data extracted from the page.
@@ -128,6 +150,8 @@ class PDF2CSV(object):
             lines, column_coordinates = self.extend_lines_for_table(lines,
                                                                     is_header,
                                                                     table_limits)
+        self.log_data(input_pdf_filepath, page_num, measure_file_obj,
+                      column_coordinates)
         table_bounds = self.get_table_bounds()
         tabula_command = self.get_tabula_command_extenstion()
         if table_bounds and column_coordinates:
@@ -156,13 +180,43 @@ class PDF2CSV(object):
             logger.warning(warning_message.format(page_num, input_pdf_filepath))
         return page_table_data
 
+    def log_data(self, input_pdf_filepath, page_num, measure_file_obj,
+                 column_coordinates):
+        '''Log additional data into a file.
+
+           Logs filename, page number, table coordinates and Whether table was
+           detected or not.
+
+           Args:
+               - input_pdf_filepath (string): The path of the pdf to be parsed.
+               - page_num (int): Page number that is being processed.
+               - measure_file_obj (obj: `file`): the file to write the
+                    information to, no data will be written incase this is
+                    None.
+               - column_coordinates (obj: `list`): A list of coordinates where
+                   columns were detected.
+        '''
+        if measure_file_obj is None:
+            return
+        # The file is going to be a csv thus we are going to generate a string
+        # with the following information separated by `,`
+        # filename, page_num, table detected, column_coordinates
+        # and write it to the file and add a newline.
+        filename = os.path.split(input_pdf_filepath)[-1]
+        table_detected = len(column_coordinates) > 1
+        log_info = "{0},{1},{2},{3}\n".format(filename, page_num, table_detected,
+                                            column_coordinates)
+        measure_file_obj.write(log_info)
+        measure_file_obj.flush()
+        return
+
     def get_rotated_pdf_obj(self, input_pdf_obj, page_num):
         '''Rotate a given pdf clockwise 90 degress.
 
         Args:
-            input_pdf_obj (obj:`PdfFileReader`): PdfFileReader object of the
+            - input_pdf_obj (obj:`PdfFileReader`): PdfFileReader object of the
                 file to rotate.
-            page_num (int): Page number to rotate.
+            - page_num (int): Page number to rotate.
 
         Returns:
             A PdfFileReader object of the rotated pdf.
@@ -452,6 +506,10 @@ if __name__ == '__main__':
     parser.add_argument("--header", help="Use if file consists of a page header(& we need to skip it)")
     parser.add_argument("--columns", help="Identify columns and then parse")
     parser.add_argument("--rotate", help="If no table is identified then algo will rotate and try again")
+    measure_message = "If a file name is given,"
+    measure_message += " the algorithm will create a log file of the"
+    measure_message += " data that can be used to measure the performance."
+    parser.add_argument("--measure", help=measure_message)
     parser.add_argument("input_file", help="Input PDF filepath")
     parser.add_argument("output_file", help="Output CSV filepath")
     args = parser.parse_args()
@@ -459,4 +517,5 @@ if __name__ == '__main__':
     if not args.input_file or not args.output_file:
         print("Please pass input and output filepaths")
     else:
-        obj.generate_csv_file(args.input_file, args.output_file, is_header=args.header, identify_columns=args.columns, check_page_rotation=args.rotate)
+        obj.generate_csv_file(args.input_file, args.output_file, is_header=args.header, identify_columns=args.columns, check_page_rotation=args.rotate,
+                              measure_file=args.measure)
