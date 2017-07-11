@@ -93,7 +93,7 @@ class PDF2CSV(object):
             The file object.
         '''
         measure_file_obj = open(measure_file_name, 'w')
-        measure_file_obj.write('filename,pag_num,table_detected,column_coordinates\n')
+        measure_file_obj.write('filename,pag_num,table_detected,column_coordinates,table_count\n')
         measure_file_obj.flush()
         return measure_file_obj
 
@@ -184,8 +184,8 @@ class PDF2CSV(object):
                  column_coordinates):
         '''Log additional data into a file.
 
-           Logs filename, page number, table coordinates and Whether table was
-           detected or not.
+           Logs filename, page number, table coordinates, Whether table was
+           detected or not and column count
 
            Args:
                - input_pdf_filepath (string): The path of the pdf to be parsed.
@@ -193,19 +193,23 @@ class PDF2CSV(object):
                - measure_file_obj (obj: `file`): the file to write the
                     information to, no data will be written incase this is
                     None.
-               - column_coordinates (obj: `list`): A list of coordinates where
-                   columns were detected.
+               - column_coordinates (obj: `list of floats`): A list of
+                   coordinates where columns were detected.
         '''
         if measure_file_obj is None:
             return
         # The file is going to be a csv thus we are going to generate a string
         # with the following information separated by `,`
-        # filename, page_num, table detected, column_coordinates
+        # filename, page_num, table detected, column_coordinates,column count
         # and write it to the file and add a newline.
         filename = os.path.split(input_pdf_filepath)[-1]
         table_detected = len(column_coordinates) > 1
-        log_info = "{0},{1},{2},{3}\n".format(filename, page_num, table_detected,
-                                            column_coordinates)
+        parsed_column_coordinates = '|'.join([str(num) for num in
+                                              column_coordinates])
+        log_info = "{0},{1},{2},{3},{4}\n".format(filename, page_num,
+                                              table_detected,
+                                              parsed_column_coordinates,
+                                              len(column_coordinates))
         measure_file_obj.write(log_info)
         measure_file_obj.flush()
         return
