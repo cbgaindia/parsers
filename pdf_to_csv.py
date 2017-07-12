@@ -14,7 +14,7 @@ import re
 import subprocess
 
 logging.addLevelName(60, 'PERF')
-fileConfig('parsers/logging_config.ini', defaults={'perflogfilename': 'perf_monit.log'})
+fileConfig('parsers/logging_config.ini')
 logger = logging.getLogger('debug')
 perf_logger = logging.getLogger('perf_monitoring')
 BUFFER_LENGTH = 10
