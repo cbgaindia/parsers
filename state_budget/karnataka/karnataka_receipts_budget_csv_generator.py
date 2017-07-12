@@ -91,13 +91,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generates CSV files from Karnataka Receipts State Budget PDF Document")
     parser.add_argument("input_file", help="Input filepath for budget document")
     parser.add_argument("output_dir", help="Output directory for budget document")
-    measure_message = "If a file name is given,"
-    measure_message += " the algorithm will create a log file of the"
-    measure_message += " data that can be used to measure the performance."
-    parser.add_argument("--measure", help=measure_message)
     args = parser.parse_args()
     obj = KarnatakaReceiptsBudgetCSViGenerator()
     if not args.input_file or not args.output_dir:
         print("Please input directory to begin CSV extraction")
     else:
-        obj.generate_karnataka_budget_csv(args.input_file, args.output_dir, args.measure)
+        obj.generate_karnataka_budget_csv(args.input_file, args.output_dir)

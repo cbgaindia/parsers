@@ -23,15 +23,14 @@ class KarnatakaBudgetCSVGenerator(PDF2CSV):
         self.parent_scheme_regex = r"([A-Z]+\.|\([a-z]+\)|\d{4,}|^[MDCLXVI]+ |^Total)"
         self.voted_charged_column = True
 
-    def generate_karnataka_budget_csv(self, input_file, output_dir, measure_file):
+    def generate_karnataka_budget_csv(self, input_file, output_dir):
         '''
         Main call comes here setting global variable and calling PDF to CSV
         '''
         self.input_file = input_file
         self.output_dir = output_dir
         self.generate_csv_file(input_file, input_file.split(".pdf")[0] + ".csv",
-                               is_header=True, identify_columns=True,
-                               measure_file=measure_file)
+                               is_header=True, identify_columns=True)
 
     def modify_table_data(self, table):
         '''
@@ -262,13 +261,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generates CSV files from Karnataka State Budget PDF Document")
     parser.add_argument("input_file", help="Input filepath for budget document")
     parser.add_argument("output_dir", help="Output directory for budget document")
-    measure_message = "If a file name is given,"
-    measure_message += " the algorithm will create a log file of the"
-    measure_message += " data that can be used to measure the performance."
-    parser.add_argument("--measure", help=measure_message)
     args = parser.parse_args()
     obj = KarnatakaBudgetCSVGenerator()
     if not args.input_file or not args.output_dir:
         print("Please input directory to begin CSV extraction")
     else:
-        obj.generate_karnataka_budget_csv(args.input_file, args.output_dir, args.measure)
+        obj.generate_karnataka_budget_csv(args.input_file, args.output_dir)
