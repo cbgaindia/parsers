@@ -11,7 +11,7 @@ To Read List : -
   - [x] [Table Structure Recognition Based On Robust Block Segmentation](https://www.dfki.uni-kl.de/~kieni/publications/spie98.pdf), [Summary](https://www.dfki.uni-kl.de/~kieni/publications/DLIA99.pdf) - This is similar to what I had in mind.
   - [x] [Detecting Table Region in PDF Documents Using Distant Supervision (arxiv)](https://arxiv.org/pdf/1506.08891.pdf)
   - [x] [Table Extraction from Document Images using Fixed Point Model(IIT Delhi!!)](http://www.cse.iitd.ernet.in/~sumantra/publications/icvgip14_table.pdf)
-  - [ ] [ANN for Document Analysis and Recognition](https://pdfs.semanticscholar.org/b02b/5c1c35c0897ed7f399df2cff8aee107a0d98.pdf)
+  - [x] [ANN for Document Analysis and Recognition](https://pdfs.semanticscholar.org/b02b/5c1c35c0897ed7f399df2cff8aee107a0d98.pdf)
   - [ ] [Table Detection via Probability Optimization](http://gsl.lab.asu.edu/doc/tabledas02.pdf)
 
 Note Worthy Links :-
