@@ -14,7 +14,7 @@ class KarnatakaReceiptsBudgetCSViGenerator(KarnatakaBudgetCSVGenerator):
         super(KarnatakaReceiptsBudgetCSViGenerator, self).__init__()
         self.min_col_count = 4
         self.max_col_count = 6
-        self.parent_scheme_regex = r"([A-Z]+\.|\([a-z]+\)|^[MDCLXVI]+ |^Total)"  
+        self.parent_scheme_regex = r"([A-Z]+\.|\([a-z]+\)|^[MDCLXVI]+ |^Total)"
         self.voted_charged_column = False
 
     def extract_head_codes(self, pagewise_table):
@@ -31,7 +31,7 @@ class KarnatakaReceiptsBudgetCSViGenerator(KarnatakaBudgetCSVGenerator):
                 page_table[row_index][0] = head_code.strip()
                 page_table[row_index].insert(1, val.replace(head_code, ""))
         return pagewise_table
-    
+
     def extract_budget_codes(self, pagewise_table):
         '''Extracting Budget codes from scheme descriptions, inheriting classes can customize it
         '''
@@ -46,7 +46,7 @@ class KarnatakaReceiptsBudgetCSViGenerator(KarnatakaBudgetCSVGenerator):
                 page_table[row_index][1] = budget_code.strip()
                 page_table[row_index].insert(2, val.replace(budget_code, ""))
         return pagewise_table
-    
+
     def clean_header_values(self, row_index, page_table):
         '''CLeaning and generating correct header values and unwanted row indices
         '''
@@ -60,13 +60,13 @@ class KarnatakaReceiptsBudgetCSViGenerator(KarnatakaBudgetCSVGenerator):
                     if index != row_index:
                         unwanted_row_indices[index] = True
                 if col_index > 1:
-                    header_val =  header_val + " " + self.currency_slug 
+                    header_val =  header_val + " " + self.currency_slug
                 page_table[row_index][col_index] = header_val.strip()
             page_table[row_index].insert(1,"Budget Code")
         return unwanted_row_indices.keys()
 
 
-    def generate_page_headers_map(self, pagewise_table): 
+    def generate_page_headers_map(self, pagewise_table):
         '''Generating pagewise headers for tables
         '''
         pagewise_keywords = {}
@@ -93,7 +93,7 @@ if __name__ == '__main__':
     parser.add_argument("output_dir", help="Output directory for budget document")
     args = parser.parse_args()
     obj = KarnatakaReceiptsBudgetCSViGenerator()
-    if not args.input_file or not args.output_dir: 
+    if not args.input_file or not args.output_dir:
         print("Please input directory to begin CSV extraction")
     else:
-        obj.generate_karnataka_budget_csv(args.input_file, args.output_dir)    
+        obj.generate_karnataka_budget_csv(args.input_file, args.output_dir)

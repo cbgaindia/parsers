@@ -13,8 +13,10 @@ from PyPDF2 import PdfFileReader, PdfFileWriter
 import re
 import subprocess
 
+logging.addLevelName(60, 'PERF')
 fileConfig('parsers/logging_config.ini')
-logger = logging.getLogger()
+logger = logging.getLogger('debug')
+perf_logger = logging.getLogger('perf_monitoring')
 BUFFER_LENGTH = 10
 DEFAULT_PIXEL_COLOR = [255, 255, 255]
 PAGE_BREAK_HANDLE = '"||page_break||"'
@@ -128,6 +130,8 @@ class PDF2CSV(object):
             lines, column_coordinates = self.extend_lines_for_table(lines,
                                                                     is_header,
                                                                     table_limits)
+        self.log_performance_monitoring_data(input_pdf_filepath, page_num,
+                                             column_coordinates)
         table_bounds = self.get_table_bounds()
         tabula_command = self.get_tabula_command_extenstion()
         if table_bounds and column_coordinates:
@@ -156,13 +160,41 @@ class PDF2CSV(object):
             logger.warning(warning_message.format(page_num, input_pdf_filepath))
         return page_table_data
 
+    def log_performance_monitoring_data(self, input_pdf_filepath, page_num,
+                                        column_coordinates):
+        '''Log additional data into a file for performance monitoring.
+
+           Logs filename, page number, table coordinates, Whether table was
+           detected or not and column count
+
+           Args:
+               - input_pdf_filepath (string): The path of the pdf to be parsed.
+               - page_num (int): Page number that is being processed.
+               - column_coordinates (obj: `list of floats`): A list of
+                   coordinates where columns were detected.
+        '''
+        # The file is going to be a csv thus we are going to generate a string
+        # with the following information separated by `,`
+        # filename, page_num, table detected, column_coordinates,column count
+        # and write it to the file and add a newline.
+        filename = os.path.split(input_pdf_filepath)[-1]
+        table_detected = len(column_coordinates) > 1
+        parsed_column_coordinates = '|'.join([str(num) for num in
+                                              column_coordinates])
+        log_info = "{0},{1},{2},{3},{4}".format(filename, page_num,
+                                                table_detected,
+                                                parsed_column_coordinates,
+                                                len(column_coordinates))
+        perf_logger.log(60, log_info)
+        return
+
     def get_rotated_pdf_obj(self, input_pdf_obj, page_num):
         '''Rotate a given pdf clockwise 90 degress.
 
         Args:
-            input_pdf_obj (obj:`PdfFileReader`): PdfFileReader object of the
+            - input_pdf_obj (obj:`PdfFileReader`): PdfFileReader object of the
                 file to rotate.
-            page_num (int): Page number to rotate.
+            - page_num (int): Page number to rotate.
 
         Returns:
             A PdfFileReader object of the rotated pdf.
