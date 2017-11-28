@@ -16,4 +16,11 @@ WestBengal Demand Drafts https://openbudgetsindia.org/dataset?q=west+bengal
 Description
 ===========
 
-Convert Text into blocks and then extract information from blocks which can be used to classify each block as header, text, number, title etc.
+Convert Text into blocks and then extract information from blocks which can be used to classify each block as :-
+
+    - Header
+    - Number
+    - Grouping
+    - Summary
+    - Title
+    - NaN
