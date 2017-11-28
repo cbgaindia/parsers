@@ -12,6 +12,7 @@ To ensure the above 3 we encourage to follow the following structure for the res
 Structure
 ---------
 
+```
 ./research
 |   +-- topic-of-research
 |   |    +-- notebooks
@@ -21,7 +22,7 @@ Structure
 |   |    |   +-- code.py
 |   |    |   +-- another_code.py
 |   |    +-- README.md
-
+```
 
 All the research trials go into ipython notebooks in the `notebooks` folder, the code generated based on the research goes into `code` as it might not always be simple to integrate the code directly into production.The Readme contains description of the idea and overall an idea of the process.
 
