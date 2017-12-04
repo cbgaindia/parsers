@@ -10,20 +10,21 @@ class BlocksToCSV(object):
     DEFAULT_HEADERS = 'Actuals, 2015-2016 Rs;Budget Estimate, 2016-2017 Rs;Revised Estimate, 2016-2017 Rs;Budget Estimate, 2017-2018 Rs;'
     COLUMN_COUNT = 6
 
-    def __init__(self, img, block_features, page_num):
+    def __init__(self, img, block_features, page_num, target_folder):
         self.img = img
         self.block_features = block_features
         self.page_num = page_num
+        self.target_folder = target_folder
         self.rows = []
         self.cols = []
 
     def find_rows(self, block_features):
-        """
+        '''
         Figure out the points where rows start and end.
 
         1. Headers would be the starting point. Bottom of the headers
         2. Each cell value will be separated by a row.
-        """
+        '''
         rows = []
         if 'header' in block_features.label.unique():
             rows.extend(block_features[block_features['label'] ==
@@ -229,7 +230,7 @@ class BlocksToCSV(object):
             abstract = self.detect_term(titles, 'abstract')
             detailed = self.detect_term(titles, 'detailed')
             detailed_account_no = self.extract_term(titles, 'detailed account no')
-            filename = '{0}_{1}.csv'.format(self.page_num, table_no)
+            filename = '{0}/{1}_{2}.csv'.format(self.target_folder, self.page_num, table_no)
             tables.append({'page_no': self.page_num,
                            'table': table_no,
                            'demand_no': demand_no,
