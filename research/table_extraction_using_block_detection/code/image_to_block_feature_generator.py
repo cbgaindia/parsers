@@ -59,7 +59,7 @@ class ImageToBlocks(object):
         '''
         kernel = np.ones((5, 10), np.uint8)
         _, thresh1 = cv2.threshold(self.img, 0, 1, cv2.THRESH_BINARY_INV)
-        return cv2.dilate(thresh1, kernel, iterations=5)
+        return cv2.dilate(thresh1, kernel, iterations=4)
 
 
 class BlockGeometricalFeatureGenerator(ImageToBlocks):
@@ -131,7 +131,7 @@ class BlockTextualFeatureGenerator(BlockGeometricalFeatureGenerator):
             the blocks generated.
     '''
     TEXT_REGEX = '[a-zA-Z_]+'
-    COMMA_SEP_REGEX = '^(-|[1-9])[0-9]*(,[0-9]).*$'
+    COMMA_SEP_REGEX = r'^-?(\d+)(,\s*\d+)*$'
 
     def __init__(self, img, horizontal_ratio,
                  vertical_ratio, page_num,
@@ -193,8 +193,7 @@ class BlockTextualFeatureGenerator(BlockGeometricalFeatureGenerator):
         row['possible_row_merger'] = '\n' in row['text']
         text_matched = re.findall(self.TEXT_REGEX, row['text'])
         comma_sep_matcher = re.compile(self.COMMA_SEP_REGEX)
-        row['comma_separated_numbers_present'] = comma_sep_matcher.match(row['text']
-                                                                         .replace('\n', ' '))
+        row['comma_separated_numbers_present'] = comma_sep_matcher.match(row['text'].replace('\n', ' ')) is not None
         row['is_text'] = len(text_matched) > 0
         try:
             row['number'] = int(row['text'].replace(',', ''))

@@ -7,7 +7,7 @@ import pandas as pd
 class BlocksToCSV(object):
     '''Convert blocks with labels to a csv.
     '''
-    DEFAULT_HEADERS = 'Actuals, 2015-2016 Rs;Budget Estimate, 2016-2017 Rs;Revised Estimate, 2016-2017 Rs;Budget Estimate, 2017-2018 Rs;'
+    DEFAULT_HEADERS = 'Actuals, 2013-2014 Rs;Budget Estimate, 2015-2016 Rs;Revised Estimate, 2015-2016 Rs;Budget Estimate, 2016-2017 Rs;'
     COLUMN_COUNT = 6
 
     def __init__(self, img, block_features, page_num, target_folder):
@@ -127,7 +127,7 @@ class BlocksToCSV(object):
             row_index_count = features[(features.left.between(col_start, col_end) &
                                         (features.table == table))]['row_index'].value_counts()
             overlaps = row_index_count[row_index_count > 1].index
-            if len(overlaps) > 0:
+            if len(overlaps) > 0 and index > 0:
                 overlapping_features = features[(features.left.between(col_start, col_end) &
                                                  (features.table == table) &
                                                  (features.row_index.isin(overlaps)))]
@@ -215,6 +215,9 @@ class BlocksToCSV(object):
         '''Detect Layout of the blocks and convert them into a csv file.
         '''
         block_features = self.get_features_with_rows_and_cols()
+        block_features.to_csv('{0}/log_block_features/{1}_table_row_col_indices.csv'.format(self.target_folder,
+                                                                                            self.page_num),
+                              index=False)
         tables = []
         for table_no in block_features.table.unique():
             # Retain/Extract the following features for table joining
