@@ -76,7 +76,8 @@ def unprocessed_files(input_folder, output_folder):
     return list(set(os.listdir(input_folder)) - set(processed_pdfs))
 
 
-def process_folder(input_folder_path, output_folder_path, resume):
+def process_folder(input_folder_path, output_folder_path, resume,
+                   default_headers):
     '''Process a folder of demand draft pdfs and store the output in the output
     folder.
     '''
@@ -84,7 +85,6 @@ def process_folder(input_folder_path, output_folder_path, resume):
     if resume > 0:
         pdf_files = unprocessed_files(input_folder_path, output_folder_path)
         print('processing: {0}'.format(pdf_files))
-    #for pdf_file_name in ["11. LA, Governor's Secretariat, Council of Ministers, Agricultural Marketing, Agri.pdf"]:
     for pdf_file_name in pdf_files:
         target_folder = os.path.join(output_folder_path,
                                      pdf_file_name.strip('.pdf'))
@@ -135,7 +135,8 @@ def process_folder(input_folder_path, output_folder_path, resume):
                     page_tables = BlocksToCSV(img_page,
                                               block_features_with_labels,
                                               page_num,
-                                              target_folder).write_to_csv()
+                                              target_folder,
+                                              default_headers).write_to_csv()
                     tables = pd.concat([tables, pd.DataFrame(page_tables)])
                 except Exception as err:
                     print(err)
@@ -152,8 +153,12 @@ if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser(description="Extracts CSV from a folder of pdfs.")
     arg_parser.add_argument("input_folder", help="Input PDF folder")
     arg_parser.add_argument("output_folder", help="Output folder")
+    arg_parser.add_argument("numeric_headers", help="""Expected numeric headers
+                            example: 'Actuals, 2013-2014 Rs;Budget Estimate, 2015-2016 Rs;Revised Estimate,
+                            2015-2016 Rs;Budget Estimate, 2016-2017 Rs;'""",
+                            type=str)
     arg_parser.add_argument("--resume", default=0, type=int,
                             help="Resume previous running process.")
     input_args = arg_parser.parse_args()
     process_folder(input_args.input_folder, input_args.output_folder,
-                   input_args.resume)
+                   input_args.resume, input_args.numeric_headers)

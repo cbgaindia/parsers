@@ -7,14 +7,15 @@ import pandas as pd
 class BlocksToCSV(object):
     '''Convert blocks with labels to a csv.
     '''
-    DEFAULT_HEADERS = 'Actuals, 2013-2014 Rs;Budget Estimate, 2015-2016 Rs;Revised Estimate, 2015-2016 Rs;Budget Estimate, 2016-2017 Rs;'
     COLUMN_COUNT = 6
 
-    def __init__(self, img, block_features, page_num, target_folder):
+    def __init__(self, img, block_features, page_num, target_folder,
+                 default_headers):
         self.img = img
         self.block_features = block_features
         self.page_num = page_num
         self.target_folder = target_folder
+        self.default_headers = default_headers
         self.rows = []
         self.cols = []
 
@@ -250,12 +251,12 @@ class BlocksToCSV(object):
             with open(filename, 'w') as csv_file:
                 # for each row write a line
                 if 'header' not in table_features.label.unique():
-                    number_of_default_headers = len(self.DEFAULT_HEADERS.split(';')) - 1
+                    number_of_default_headers = len(self.default_headers.split(';')) - 1
                     if 'number_values' in table_features.label.unique():
                         headers_row = ';' * (max_col - number_of_default_headers)
-                        headers_row += self.DEFAULT_HEADERS
+                        headers_row += self.default_headers
                     else:
-                        headers_row = ';;' + self.DEFAULT_HEADERS
+                        headers_row = ';;' + self.default_headers
                     csv_file.write(headers_row)
                     csv_file.write('\n')
                 for _, group in table_features.sort_values('top').groupby('row_index'):
