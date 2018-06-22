@@ -116,7 +116,7 @@ class PDF2CSV(object):
                                                           self.temp_img_file)
         subprocess.check_output(command, shell=True)
         self.image_object = cv2.imread(self.temp_img_file)
-        image_height, image_width, channels = self.image_object.shape
+        image_height, image_width, _ = self.image_object.shape
         self.horizontal_ratio = page_width/image_width
         self.vertical_ratio = page_height/image_height
         lines = self.get_straight_lines()
@@ -132,12 +132,7 @@ class PDF2CSV(object):
         tabula_command = self.get_tabula_command_extenstion()
         if table_bounds and column_coordinates:
             if identify_columns:
-                column_values = ""
-                for value in column_coordinates:
-                    if column_values:
-                        column_values += "," + str(value)
-                    else:
-                        column_values = str(value)
+                column_values = self.column_value_formatter(column_coordinates)
                 command = "%s --pages %s --area %s,%s,%s,%s --columns %s '%s'" % (tabula_command, page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], column_values, input_pdf_filepath)
             else:
                 command = "%s --pages %s --area %s,%s,%s,%s '%s'" % (tabula_command, page_num+1, table_bounds["top"], table_bounds["left"], table_bounds["bottom"], table_bounds["right"], input_pdf_filepath)
@@ -155,6 +150,12 @@ class PDF2CSV(object):
             warning_message = "No table found on {0} from file {1}"
             logger.warning(warning_message.format(page_num, input_pdf_filepath))
         return page_table_data
+
+    @staticmethod
+    def column_value_formatter(column_coordinates):
+        '''Given Column Coordinates format column values for tabula command'''
+        column_coordinates = [str(val) for val in column_coordinates]
+        return ','.join(column_coordinates)
 
     def get_rotated_pdf_obj(self, input_pdf_obj, page_num):
         '''Rotate a given pdf clockwise 90 degress.
@@ -180,7 +181,7 @@ class PDF2CSV(object):
         '''
         image_gray = cv2.cvtColor(self.image_object, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(image_gray, 100, 150, apertureSize=aperture_size)
-        min_line_length = 100
+        min_line_length = 5
         max_line_gap = 100
         lines = cv2.HoughLinesP(edges, 1, numpy.pi/180, 80, min_line_length,
                                 max_line_gap)
