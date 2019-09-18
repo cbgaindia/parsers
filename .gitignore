@@ -4,3 +4,8 @@
 *.csv
 *.swp
 *.png
+
+# data files
+*.csv
+*.xlsx
+*.sqlite
