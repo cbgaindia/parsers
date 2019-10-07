@@ -3,6 +3,7 @@ geometrical and textual features.
 '''
 import re
 import pandas as pd
+import joblib
 
 
 class BlockLabeler(object):
@@ -44,7 +45,7 @@ class BlockLabeler(object):
             A pandas series with label as `number_values` wherever rules are
             satisfied.
         '''
-        not_text_and_no_comma = row['comma_separated_numbers_present'] and row['is_text'] == 0
+        not_text_and_no_comma = row['comma_separated_numbers_present'] and (row['is_text'] == 0)
         if not_text_and_no_comma or (row['text'] == '...'):
             row['label'] = 'number_values'
         return row
@@ -76,6 +77,11 @@ class BlockLabeler(object):
         if len(numbers_below) > 1 and row['label'] != 'number_values' and width_check:
             if len(numbers_right) < 1:
                 row['label'] = 'header'
+        if ('Actuals' in row['text'] or
+            'Budget' in row['text'] or
+            'Revised' in row['text'] or
+            'Estimate' in row['text']):
+            row['label'] = 'header'
         return row
 
     def mark_probable_headers(self, row, features):
@@ -154,6 +160,16 @@ class BlockLabeler(object):
                 row.centroid_x < 1300 and
                 pd.isnull(row.label)
            ):
+            row['label'] = 'title'
+        # check capitalization of letters
+        if row.is_text and row.text.isupper() and pd.isnull(row.label):
+            if ('REVENUE EXPENDITURE' in row.text or 'DETAILED ACCOUNT' in
+            row.text or 'ABSTRACT ACCOUNT' in row.text or 'CAPITAL EXPENDITURE'
+               in row.text or 'LOAN EXPENDITURE' in row.text):
+                row['label'] = 'title'
+        if 'demand no' in row.text.lower():
+            row['label'] = 'title'
+        if 'Head of Account' in row.text:
             row['label'] = 'title'
         return row
 
@@ -301,25 +317,27 @@ def remove_false_headers(features):
     features.loc[features.pos.isin(positions_to_unlabel), 'label'] = None
     return features
 
+
 def combine_horizontal(block_features):
-    """
+    '''
     This combines long texts into a single block, as long texts sometimes gets
     broken down into multiple blocks.
 
     Args:
         features (obj:`pd.DataFrame`): A dataframe containing blocks and their respective labels.
 
+
     Returns:
         A dataframe in which all the long text blocks are combined together
         into a single block.
-    """
+    '''
     processed_features = pd.DataFrame()
     skip_pos = []
     for _, row in block_features.iterrows():
         if row['pos'] not in skip_pos:
             nearby_labels = block_features[(block_features.left.between(row['left'] - 5,
                                                                         row['right'] + 5)) &
-                                           (block_features.top.between(row['top'] -5,
+                                           (block_features.top.between(row['top'] - 5,
                                                                        row['top'] + 5)) &
                                            (block_features.pos != row['pos'])]
             if len(nearby_labels) > 0 and row['label'] not in ['header', 'number_values']:
@@ -331,3 +349,28 @@ def combine_horizontal(block_features):
                 skip_pos.extend(nearby_labels.pos.tolist())
             processed_features = processed_features.append(row)
     return processed_features
+
+
+def mark_groupings_using_rf_model(block_features,
+                                  model_path='../models/random_forest_base_model.sav'):
+    '''
+    To reduce data loss of 'grouping' cateogory, we have trained models that
+    mark each entry as a grouping or not.
+
+    Args:
+        features (obj:`pd.DataFrame`): A dataframe containing blocks and their respective labels.
+        model_path (string): path to stored model. NOTE: the model is saved using joblib.dump
+
+    Returns:
+        Block features with labels for blocks that were not marked by rules and
+        probably 'groupings'
+    '''
+
+    model = joblib.load(model_path)
+    columns = ['area', 'bottom', 'centroid_x',
+               'centroid_y', 'comma_separated_numbers_present',
+               'height', 'left', 'right', 'is_text', 'text_length']
+    block_features['is_grouping'] = model.predict(block_features[columns])
+    block_features.loc[((pd.isnull(block_features.label) &
+                         block_features.is_grouping == 1)), 'label'] = 'grouping'
+    return block_features
