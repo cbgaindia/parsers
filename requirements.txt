@@ -8,4 +8,4 @@ simplejson == 3.10.0
 xlrd == 1.0.0
 xlutils == 2.0.0
 xlwt == 1.1.2
-opencv-python == 3.1.0
+opencv-python == 3.4.0.12
