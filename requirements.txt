@@ -1,5 +1,5 @@
 PyPDF2 == 1.26.0.egg
-lxml == 3.6.4
+lxml == 4.6.5
 numpy == 1.11.0.egg
 openpyxl == 2.4.1
 pandas == 0.19.1
