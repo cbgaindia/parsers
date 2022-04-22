@@ -1,4 +1,4 @@
-PyPDF2 == 1.26.0.egg
+PyPDF2 == 1.27.5
 lxml == 3.6.4
 numpy == 1.11.0.egg
 openpyxl == 2.4.1
