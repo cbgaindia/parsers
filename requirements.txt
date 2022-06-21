@@ -1,6 +1,6 @@
 PyPDF2 == 1.26.0.egg
 lxml == 3.6.4
-numpy == 1.11.0.egg
+numpy == 1.22.0rc1
 openpyxl == 2.4.1
 pandas == 0.19.1
 reportlab == 3.3.0.egg
