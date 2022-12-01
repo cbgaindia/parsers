@@ -4,6 +4,7 @@
 *.csv
 *.swp
 *.png
+*.json
 
 # data files
 *.csv
